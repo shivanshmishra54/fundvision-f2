@@ -76,16 +76,27 @@ def _fetch_index_from_groww(groww_symbol: str) -> dict | None:
     Returns a dict with price fields or None on failure.
     """
     try:
-        url = f"{settings.GROWW_API_BASE}/stocks/search"
-        headers = {"accept": "application/json", "User-Agent": "Mozilla/5.0"}
-        response = requests.get(
-            f"https://groww.in/v1/api/stocks_data/v1/accord_points/exchange/NSE/segment/EQUITY/latest",
-            headers=headers,
-            timeout=5,
-        )
+        url = f"https://groww.in/v1/api/stocks_data/v1/accord_points/exchange/NSE/segment/INDEX/latest"
+        headers = {"accept": "application/json", "User-Agent": "Mozilla/5.0 (FundVision)"}
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 429:
+            raise ValueError("Groww rate limit")
         if response.status_code == 200:
             data = response.json()
-            return data
+            # Parse first index or match symbol
+            for item in data:
+                if item.get('point', {}).get('tradingsymbol') == groww_symbol:
+                    point = item['point']
+                    return {
+                        'price': float(point.get('ltp', 0)),
+                        'previous_close': float(point.get('pcp', 0)),
+                        'day_high': float(point.get('oh', 0)),
+                        'day_low': float(point.get('ol', 0)),
+                        'volume': int(point.get('vtt', 0)),
+                    }
+            return None
+        else:
+            logger.debug("Groww HTTP %d for %s", response.status_code, groww_symbol)
     except Exception as e:
         logger.warning("Groww API error for %s: %s", groww_symbol, e)
     return None
@@ -103,17 +114,25 @@ def _fetch_index_from_yahoo(yahoo_symbol: str) -> dict | None:
             "Accept": "application/json",
         }
         response = requests.get(url, headers=headers, timeout=8, params={"interval": "1m", "range": "1d"})
-        if response.status_code == 200:
-            data = response.json()
-            result = data.get("chart", {}).get("result", [{}])[0]
-            meta = result.get("meta", {})
-            return {
-                "price": meta.get("regularMarketPrice"),
-                "previous_close": meta.get("previousClose") or meta.get("chartPreviousClose"),
-                "day_high": meta.get("regularMarketDayHigh"),
-                "day_low": meta.get("regularMarketDayLow"),
-                "volume": meta.get("regularMarketVolume"),
-            }
+        if response.status_code == 429:
+            raise ValueError("Yahoo rate limit exceeded")
+        if response.status_code != 200:
+            logger.warning("Yahoo HTTP %d for %s", response.status_code, yahoo_symbol)
+            return None
+        data = response.json()
+        result = data.get("chart", {}).get("result", [{}])[0]
+        meta = result.get("meta", {})
+        parsed = {
+            "price": meta.get("regularMarketPrice"),
+            "previous_close": meta.get("previousClose") or meta.get("chartPreviousClose"),
+            "day_high": meta.get("regularMarketDayHigh"),
+            "day_low": meta.get("regularMarketDayLow"),
+            "volume": meta.get("regularMarketVolume"),
+        }
+        if not parsed["price"]:
+            logger.debug("No price data in Yahoo response for %s", yahoo_symbol)
+            return None
+        return parsed
     except Exception as e:
         logger.warning("Yahoo Finance error for %s: %s", yahoo_symbol, e)
     return None
@@ -128,9 +147,61 @@ def _fetch_stock_from_yahoo(symbol: str) -> dict | None:
     return data
 
 
+def _fetch_from_alpha_vantage(symbol: str) -> dict | None:
+    """
+    Fetch from Alpha Vantage GLOBAL_QUOTE (highest quality).
+    Returns {'price': float, 'previous_close': float, ...} or None.
+    Handles invalid key & rate limits.
+    """
+    api_key = getattr(settings, 'ALPHA_VANTAGE_API_KEY', '')
+    if not api_key or api_key == 'demo' or len(api_key) < 10:
+        logger.debug("No valid Alpha Vantage key for %s", symbol)
+        return None
+
+    try:
+        url = "https://www.alphavantage.co/query"
+        params = {
+            'function': 'GLOBAL_QUOTE',
+            'symbol': symbol,
+            'apikey': api_key,
+        }
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 429:
+            raise ValueError("Alpha Vantage rate limit exceeded")
+        if response.status_code == 400 or response.status_code == 401:
+            logger.error("Alpha Vantage invalid API key for %s", symbol)
+            return None
+            
+        data = response.json()
+        quote = data.get('Global Quote', {})
+        if '05. price' not in quote:
+            logger.debug("No quote data from Alpha for %s", symbol)
+            return None
+            
+        price = float(quote['05. price'])
+        return {
+            'price': price,
+            'previous_close': float(quote.get('02. open', price)),
+            'day_high': float(quote.get('03. high', price)),
+            'day_low': float(quote.get('04. low', price)),
+            'volume': int(quote.get('06. volume', 0)),
+        }
+    except ValueError as e:
+        if "rate limit" in str(e):
+            logger.warning("Alpha Vantage rate limit for %s: %s", symbol, e)
+            raise  # Trigger Celery retry
+        raise
+    except Exception as e:
+        logger.warning("Alpha Vantage error for %s: %s", symbol, e)
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Celery tasks
 # ---------------------------------------------------------------------------
+
+
 
 @shared_task(
     name="apps.market.tasks.sync_index_data",
@@ -155,10 +226,15 @@ def sync_index_data(self):
     for idx_config in TRACKED_INDICES:
         symbol = idx_config["symbol"]
         try:
-            # Try Yahoo Finance (primary fallback — Groww requires more complex auth)
-            raw = _fetch_index_from_yahoo(idx_config["yahoo"])
+            # Priority: Alpha Vantage > Groww > Yahoo
+            raw = _fetch_from_alpha_vantage(symbol)
+            if not raw:
+                raw = _fetch_index_from_groww(idx_config["groww"])
+            if not raw:
+                raw = _fetch_index_from_yahoo(idx_config["yahoo"])
+                
             if not raw or not raw.get("price"):
-                logger.debug("No data from Yahoo for %s, skipping", symbol)
+                logger.debug("No data for %s from any source", symbol)
                 continue
 
             price = Decimal(str(raw["price"]))
@@ -233,7 +309,11 @@ def sync_market_data(self):
 
     for symbol in TRACKED_STOCKS:
         try:
-            raw = _fetch_stock_from_yahoo(symbol)
+            # Priority: Alpha > Yahoo (Groww for stocks tbd)
+            raw = _fetch_from_alpha_vantage(symbol)
+            if not raw:
+                raw = _fetch_stock_from_yahoo(symbol)
+                
             if not raw or not raw.get("price"):
                 continue
 

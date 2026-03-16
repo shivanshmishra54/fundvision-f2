@@ -172,7 +172,7 @@ dmypy.json
 .pyre/
 
 # Backend-specific: fundvision_backend logs exist
-fundvision_backend/logs/
+fundvision_backend/logs/*.log\n!fundvision_backend/logs/.gitkeep
 
 # Frontend-specific: Vite cache
 .vite/

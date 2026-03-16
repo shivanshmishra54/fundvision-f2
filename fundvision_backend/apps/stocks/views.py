@@ -41,10 +41,39 @@ from .serializers import (
     PeerSerializer,
     ShareholdingSerializer,
 )
+
 from apps.users.models import UserHistory
 from apps.users.permissions import IsAuthenticatedForAction
+from fundvision.celery import app as celery_app
 
 logger = logging.getLogger("apps")
+
+
+@celery_app.task(bind=True, ignore_result=True, max_retries=2)
+def log_user_history_task(self, user_id: int, symbol: str, stock_name: str = "", query: str = ""):
+    """
+    Async Celery task to log user stock views. Runs in background even on cached responses.
+    Retries on DB errors.
+    """
+    try:
+        from apps.users.models import UserHistory
+        from apps.users.models import User
+        user = User.objects.get(id=user_id)
+        UserHistory.objects.update_or_create(
+            user=user,
+            stock_symbol=symbol,
+            defaults={
+                "stock_name": stock_name,
+                "search_query": query,
+            },
+        )
+    except User.DoesNotExist:
+        pass
+    except Exception as exc:
+        logger.exception("Error logging history for user %d, symbol %s: %s", user_id, symbol, exc)
+        if '429' in str(exc) or 'rate' in str(exc).lower():
+            raise self.retry(countdown=60)
+
 
 CHART_CACHE_TTL = 60          # 1 minute for live chart data
 FINANCIALS_CACHE_TTL = 300    # 5 minutes for financial tables
@@ -66,20 +95,7 @@ class SearchRateThrottleUser(UserRateThrottle):
 # Helper — log user history
 # ---------------------------------------------------------------------------
 
-def _log_user_history(request, stock: Stock, query: str = ""):
-    """
-    Upserts a UserHistory entry when an authenticated user views a stock.
-    Uses update_or_create so repeated views just bump the timestamp.
-    """
-    if request.user and request.user.is_authenticated:
-        UserHistory.objects.update_or_create(
-            user=request.user,
-            stock_symbol=stock.symbol,
-            defaults={
-                "stock_name": stock.name,
-                "search_query": query,
-            },
-        )
+
 
 
 # ---------------------------------------------------------------------------
@@ -155,12 +171,19 @@ class StockViewSet(viewsets.ReadOnlyModelViewSet):
             cached = serializer.data
             cache.set(cache_key, cached, FINANCIALS_CACHE_TTL)
 
-        # Log history AFTER returning cached data (async-ish)
-        try:
-            stock = Stock.objects.get(symbol=symbol)
-            _log_user_history(request, stock)
-        except Stock.DoesNotExist:
-            pass
+        # Log history async via Celery (works even on cache hit)
+        if request.user and request.user.is_authenticated:
+            try:
+                stock = Stock.objects.only('name').get(symbol=symbol)
+                log_user_history_task.delay(
+                    request.user.id, 
+                    symbol, 
+                    stock.name,
+                )
+            except Stock.DoesNotExist:
+                log_user_history_task.delay(request.user.id, symbol)
+            except Exception:
+                pass  # Don't block response on logging failure
 
         return Response(cached)
 

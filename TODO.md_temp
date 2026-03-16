@@ -1,0 +1,14 @@
+# FundVision Monorepo TODO - README.md Creation
+
+## Previous Task (.gitignore): ✅ Complete
+
+## Current Task: Create root README.md
+
+**Steps:**
+- [ ] 1. Create root README.md with monorepo overview, quickstart, structure, links to sub-READMEs.
+- [ ] 2. Commit README.md.
+- [ ] 3. Verify `git status`.
+- [ ] 4. Complete.
+
+**Status:** Starting step 1.
+
