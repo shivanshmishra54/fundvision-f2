@@ -1,0 +1,228 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.soin
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.hypothesis
+.profile
+.pytest_cache/
+.coverage
+htmlcov/
+cover/
+
+# Django specific
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+.env*
+.venv
+venv/
+ENV/
+env/
+media/
+
+# Virtualenv
+# https://docs.python.org/3/tutorial/venv.html
+venv/
+ENV/
+env/
+
+# Pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
+
+# Poetry
+#   Poetry2Depfile.txt
+
+# pdm
+#   https://github.com/pdm-project/pdm/issues/741#issuecomment-1002846832
+.pdm-build/
+.pdm-python/
+.pdm-faster-cache/
+
+# Django
+*.pot
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+
+# Django/pipenv
+Pipfile.lock
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency dirs
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+.npx
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+.env.production
+.env.development
+.env.local
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Vite build output
+dist/
+.vite
+
+# Storybook build output
+.out
+.storybook-out
+
+# Vuepress build output
+.vuepress/dist
+
+# ignore thumbnails created by windows
+Thumbs.db
+# ignore windows compatibility files
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Celery specific
+celerybeat-schedule
+celerybeat.pid
+
+# MyPy
+.mypy_cache
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Backend-specific: fundvision_backend logs exist
+fundvision_backend/logs/
+
+# Frontend-specific: Vite cache
+.vite/
+
+# Global macOS ignores
+**/.DS_Store
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Temporary files
+*.tmp
+*.temp
+
+# IDE
+.idea/
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Environment variables
+.venv
+venv/
+ENV/
+env/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
