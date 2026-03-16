@@ -1,0 +1,41 @@
+"""
+fundvision/urls.py  —  Root URL configuration
+"""
+
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView,
+)
+
+# API v1 prefix
+API_V1 = "api/v1/"
+
+urlpatterns = [
+    # Django Admin
+    path("admin/", admin.site.urls),
+
+    # -----------------------------------------------------------------------
+    # API Endpoints
+    # -----------------------------------------------------------------------
+    path(API_V1 + "auth/",     include("apps.users.urls",   namespace="users")),
+    path(API_V1 + "stocks/",   include("apps.stocks.urls",  namespace="stocks")),
+    path(API_V1 + "market/",   include("apps.market.urls",  namespace="market")),
+
+    # -----------------------------------------------------------------------
+    # API Documentation  —  /api/schema/   /api/docs/   /api/redoc/
+    # -----------------------------------------------------------------------
+    path("api/schema/",  SpectacularAPIView.as_view(),           name="schema"),
+    path("api/docs/",    SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/redoc/",   SpectacularRedocView.as_view(url_name="schema"),   name="redoc"),
+]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
